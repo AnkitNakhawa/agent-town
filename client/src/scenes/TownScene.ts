@@ -14,6 +14,8 @@ const MAX_WORKSTATION_SLOTS = 8;
 
 const GRASS_FRAME = 0;
 const DIRT_FRAME = 13;
+const TREE_FRAMES = [4, 5, 16, 17];
+const FENCE_FRAME = 81;
 const GROUND_SCALE = 3;
 
 const NEEDS_HUMAN: Agent["status"][] = ["needs_approval", "needs_input"];
@@ -39,9 +41,12 @@ export class TownScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor("#1e1e2e");
+    this.deskPosition = { x: this.scale.width / 2, y: this.scale.height - 220 };
+
     this.paintGround();
     this.paintWorkstationTiles();
-    this.deskPosition = { x: this.scale.width / 2, y: this.scale.height - 220 };
+    this.paintPath();
+    this.paintDecor();
 
     this.add
       .rectangle(this.deskPosition.x, this.deskPosition.y, 100, 60, 0x313244)
@@ -102,6 +107,41 @@ export class TownScene extends Phaser.Scene {
       const x = GRID_ORIGIN.x + col * GRID_SPACING.x;
       const y = GRID_ORIGIN.y + row * GRID_SPACING.y;
       this.add.sprite(x, y, "tiny-town", DIRT_FRAME).setScale(GROUND_SCALE * 0.7);
+    }
+  }
+
+  private paintPath(): void {
+    const tileSize = TILE_SIZE * GROUND_SCALE;
+    const lastRow = Math.floor((MAX_WORKSTATION_SLOTS - 1) / GRID_COLS);
+    const startY = GRID_ORIGIN.y + lastRow * GRID_SPACING.y + tileSize / 2;
+    const endY = this.deskPosition.y - 40;
+    for (let y = startY; y < endY; y += tileSize) {
+      this.add.sprite(this.deskPosition.x, y, "tiny-town", DIRT_FRAME).setScale(GROUND_SCALE * 0.7);
+    }
+  }
+
+  private paintDecor(): void {
+    const margin = 40;
+    const positions: Array<{ x: number; y: number }> = [
+      { x: margin, y: margin },
+      { x: this.scale.width - margin, y: margin },
+      { x: margin, y: this.scale.height - margin },
+      { x: this.scale.width - margin, y: this.scale.height - margin },
+      { x: this.scale.width / 2 - 260, y: margin },
+      { x: this.scale.width / 2 + 260, y: margin },
+    ];
+
+    positions.forEach((pos, i) => {
+      const frame = TREE_FRAMES[i % TREE_FRAMES.length];
+      this.add.sprite(pos.x, pos.y, "tiny-town", frame).setScale(GROUND_SCALE);
+    });
+
+    const fenceTileSize = TILE_SIZE * GROUND_SCALE;
+    const fenceCols = Math.ceil(this.scale.width / fenceTileSize);
+    for (let col = 0; col < fenceCols; col++) {
+      this.add
+        .sprite(col * fenceTileSize + fenceTileSize / 2, fenceTileSize / 2, "tiny-town", FENCE_FRAME)
+        .setScale(GROUND_SCALE);
     }
   }
 
