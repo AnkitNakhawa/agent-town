@@ -1,22 +1,20 @@
 import Fastify from "fastify";
 import websocketPlugin from "@fastify/websocket";
+import { AgentRegistry } from "./registry.js";
+import { registerAgentRoutes } from "./routes/agents.js";
+import { registerWebSocket } from "./ws.js";
 
 const PORT = Number(process.env.PORT ?? 4317);
 
 const app = Fastify({ logger: true });
+const registry = new AgentRegistry();
 
 await app.register(websocketPlugin);
 
 app.get("/health", async () => ({ ok: true }));
 
-app.register(async (instance) => {
-  instance.get("/ws", { websocket: true }, (socket) => {
-    socket.send(JSON.stringify({ type: "hello", message: "agent-town server" }));
-    socket.on("message", (raw: Buffer) => {
-      socket.send(raw.toString());
-    });
-  });
-});
+registerAgentRoutes(app, registry);
+registerWebSocket(app, registry);
 
 app.listen({ port: PORT }, (err, address) => {
   if (err) {
