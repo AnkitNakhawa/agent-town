@@ -21,3 +21,39 @@ Status: early scaffold, work in progress.
 npm install
 npm run build
 ```
+
+Run the server, the mock agent generator, and the client:
+
+```bash
+npm run dev:server
+npm run fake-agent -- --count 4
+npm run dev:client
+```
+
+Open http://localhost:5173/.
+
+## Wrapping your real Claude Code sessions (opt-in)
+
+Agent Town can visualize your actual local Claude Code sessions, not just
+mock/SDK agents, via Claude Code's [hooks](https://code.claude.com/docs/en/hooks).
+This is entirely opt-in and project-scoped — it never touches your global
+`~/.claude/settings.json`, and no API key is required (it observes Claude
+Code's own lifecycle events; it doesn't call Claude itself).
+
+```bash
+./scripts/install-claude-code-hooks.sh
+```
+
+Run with no flags to just print the hook config for you to review and paste
+in yourself. Pass `--apply` to merge it into `.claude/settings.local.json`
+in the current project (asks for confirmation, preserves any hooks you
+already have configured):
+
+```bash
+./scripts/install-claude-code-hooks.sh --apply
+```
+
+Permission requests in that Claude Code session will then walk over to your
+desk in the game and wait for you to click Approve/Deny, falling back to
+Claude Code's normal prompt after ~55s if nothing responds (e.g. the server
+isn't running).
