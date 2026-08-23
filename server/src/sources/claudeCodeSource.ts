@@ -11,8 +11,22 @@ interface ClaudeCodeHookPayload {
   cwd?: string;
   user_message?: string;
   tool_name?: string;
-  tool_input?: { command?: string; description?: string; file_path?: string };
+  tool_input?: { command?: string; description?: string; file_path?: string; plan?: string };
   last_assistant_message?: string;
+  permission_mode?: string;
+}
+
+const pendingPlanApprovals = new Map<string, string>();
+
+function clearPendingPlanApproval(registry: AgentRegistry, agentId: string): void {
+  const approvalId = pendingPlanApprovals.get(agentId);
+  if (!approvalId) return;
+  pendingPlanApprovals.delete(agentId);
+  registry.resolveApproval(approvalId, { approved: true });
+}
+
+function describePlan(payload: ClaudeCodeHookPayload): string {
+  return payload.tool_input?.plan ?? "Plan ready — review it in your terminal.";
 }
 
 function shortName(cwd: string | undefined, sessionId: string): string {
@@ -71,6 +85,12 @@ export async function handleClaudeCodeHookEvent(
   if (!payload.session_id) return {};
   const agentId = ensureAgent(registry, payload);
 
+  const isExitPlanModeCall =
+    payload.hook_event_name === "PreToolUse" && payload.tool_name === "ExitPlanMode";
+  if (!isExitPlanModeCall) {
+    clearPendingPlanApproval(registry, agentId);
+  }
+
   switch (payload.hook_event_name) {
     case "SessionStart":
       registry.updateStatus(agentId, "idle");
@@ -81,7 +101,21 @@ export async function handleClaudeCodeHookEvent(
       return {};
 
     case "PreToolUse": {
-      if (!GATED_TOOLS.has(payload.tool_name ?? "")) {
+      if (payload.tool_name === "ExitPlanMode") {
+        clearPendingPlanApproval(registry, agentId);
+        const approval = registry.createApproval({
+          agentId,
+          kind: "permission",
+          prompt: describePlan(payload),
+          options: [],
+        });
+        if (approval) pendingPlanApprovals.set(agentId, approval.id);
+        return {};
+      }
+
+      const isGatedTool = GATED_TOOLS.has(payload.tool_name ?? "");
+      const isPlanMode = payload.permission_mode === "plan";
+      if (!isGatedTool || isPlanMode) {
         registry.updateStatus(agentId, "working", describeTool(payload));
         return {};
       }

@@ -8,6 +8,7 @@ export class DialogueBox {
   private container: Phaser.GameObjects.Container;
   private nameText: Phaser.GameObjects.Text;
   private promptText: Phaser.GameObjects.Text;
+  private hintText: Phaser.GameObjects.Text;
   private buttons: Phaser.GameObjects.Text[] = [];
 
   constructor(scene: Phaser.Scene) {
@@ -30,10 +31,17 @@ export class DialogueBox {
       fontFamily: "monospace",
       fontSize: "14px",
       color: "#cdd6f4",
-      wordWrap: { width: width - 260 },
+      wordWrap: { width: width - 80 },
     });
 
-    this.container = scene.add.container(0, 0, [bg, this.nameText, this.promptText]);
+    this.hintText = scene.add.text(40, boxY + 45, "", {
+      fontFamily: "monospace",
+      fontSize: "12px",
+      fontStyle: "italic",
+      color: "#7f849c",
+    });
+
+    this.container = scene.add.container(0, 0, [bg, this.nameText, this.promptText, this.hintText]);
     this.container.setDepth(1000);
     this.container.setVisible(false);
   }
@@ -44,9 +52,15 @@ export class DialogueBox {
     this.promptText.setText(approval.prompt);
 
     const options = approval.options ?? [];
+    const width = this.scene.scale.width;
     const height = this.scene.scale.height;
-    const startX = this.scene.scale.width - 170;
+    const startX = width - 170;
     const startY = height - 130;
+
+    this.promptText.setWordWrapWidth(options.length > 0 ? width - 260 : width - 80);
+    this.hintText.setText(
+      options.length > 0 ? "" : "Waiting for your decision — check your terminal.",
+    );
 
     options.forEach((label, index) => {
       const button = this.scene.add
