@@ -4,11 +4,17 @@ import { WsClient } from "../net/wsClient.js";
 import { respondToApproval } from "../net/api.js";
 import { AgentSprite } from "../entities/AgentSprite.js";
 import { DialogueBox } from "../ui/DialogueBox.js";
+import { TILE_SIZE } from "./BootScene.js";
 
 const WS_URL = "ws://localhost:4317/ws";
 const GRID_COLS = 4;
 const GRID_ORIGIN = { x: 140, y: 140 };
 const GRID_SPACING = { x: 180, y: 140 };
+const MAX_WORKSTATION_SLOTS = 8;
+
+const GRASS_FRAME = 0;
+const DIRT_FRAME = 13;
+const GROUND_SCALE = 3;
 
 const NEEDS_HUMAN: Agent["status"][] = ["needs_approval", "needs_input"];
 
@@ -33,6 +39,8 @@ export class TownScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor("#1e1e2e");
+    this.paintGround();
+    this.paintWorkstationTiles();
     this.deskPosition = { x: this.scale.width / 2, y: this.scale.height - 220 };
 
     this.add
@@ -71,6 +79,30 @@ export class TownScene extends Phaser.Scene {
           break;
       }
     });
+  }
+
+  private paintGround(): void {
+    const tileSize = TILE_SIZE * GROUND_SCALE;
+    const cols = Math.ceil(this.scale.width / tileSize) + 1;
+    const rows = Math.ceil(this.scale.height / tileSize) + 1;
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        this.add
+          .sprite(col * tileSize, row * tileSize, "tiny-town", GRASS_FRAME)
+          .setOrigin(0)
+          .setScale(GROUND_SCALE);
+      }
+    }
+  }
+
+  private paintWorkstationTiles(): void {
+    for (let i = 0; i < MAX_WORKSTATION_SLOTS; i++) {
+      const col = i % GRID_COLS;
+      const row = Math.floor(i / GRID_COLS);
+      const x = GRID_ORIGIN.x + col * GRID_SPACING.x;
+      const y = GRID_ORIGIN.y + row * GRID_SPACING.y;
+      this.add.sprite(x, y, "tiny-town", DIRT_FRAME).setScale(GROUND_SCALE * 0.7);
+    }
   }
 
   private slotFor(id: string): { x: number; y: number } {
