@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { AgentRegistry } from "../registry.js";
+import type { PersistenceStore } from "../db.js";
 
 interface RegisterAgentBody {
   name: string;
@@ -24,8 +25,24 @@ interface RespondApprovalBody {
   text?: string;
 }
 
-export function registerAgentRoutes(app: FastifyInstance, registry: AgentRegistry): void {
+export function registerAgentRoutes(
+  app: FastifyInstance,
+  registry: AgentRegistry,
+  store: PersistenceStore,
+): void {
   app.get("/api/agents", async () => registry.listAgents());
+
+  app.get<{ Params: { id: string }; Querystring: { limit?: string } }>(
+    "/api/agents/:id/history",
+    async (request) => {
+      const limit = Number(request.query.limit ?? 50);
+      return store.getHistory(request.params.id, limit);
+    },
+  );
+
+  app.get<{ Params: { id: string } }>("/api/agents/:id/files", async (request) => {
+    return store.getFiles(request.params.id);
+  });
 
   app.post<{ Body: RegisterAgentBody }>("/api/agents", async (request, reply) => {
     const { name, sourceType, currentTask, position } = request.body;

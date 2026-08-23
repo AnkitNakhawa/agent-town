@@ -5,6 +5,10 @@ const GATED_TOOLS = new Set(["Bash", "Write", "Edit", "MultiEdit"]);
 
 const sessionAgents = new Map<string, string>();
 
+export function seedSessionAgents(map: Map<string, string>): void {
+  for (const [sessionId, agentId] of map) sessionAgents.set(sessionId, agentId);
+}
+
 interface ClaudeCodeHookPayload {
   hook_event_name: string;
   session_id: string;
@@ -46,6 +50,7 @@ function ensureAgent(registry: AgentRegistry, payload: ClaudeCodeHookPayload): s
   const agent = registry.registerAgent({
     name: shortName(payload.cwd, payload.session_id),
     sourceType: "claude_code",
+    sessionId: payload.session_id,
   });
   sessionAgents.set(payload.session_id, agent.id);
   return agent.id;
@@ -116,7 +121,7 @@ export async function handleClaudeCodeHookEvent(
       const isGatedTool = GATED_TOOLS.has(payload.tool_name ?? "");
       const isPlanMode = payload.permission_mode === "plan";
       if (!isGatedTool || isPlanMode) {
-        registry.updateStatus(agentId, "working", describeTool(payload));
+        registry.updateStatus(agentId, "working", describeTool(payload), payload.tool_input?.file_path);
         return {};
       }
 

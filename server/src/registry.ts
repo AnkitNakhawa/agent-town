@@ -6,12 +6,14 @@ import type {
   ApprovalRequest,
   ApprovalResponse,
 } from "@agent-town/shared";
+import type { PersistenceStore } from "./db.js";
 
 export interface RegisterAgentInput {
   name: string;
   sourceType: Agent["sourceType"];
   currentTask?: string;
   position?: Agent["position"];
+  sessionId?: string;
 }
 
 export interface CreateApprovalInput {
@@ -25,6 +27,16 @@ export class AgentRegistry extends EventEmitter {
   private agents = new Map<string, Agent>();
   private approvals = new Map<string, ApprovalRequest>();
   private resolutions = new Map<string, ApprovalResponse>();
+  private store?: PersistenceStore;
+
+  constructor(store?: PersistenceStore) {
+    super();
+    this.store = store;
+  }
+
+  hydrate(agents: Agent[]): void {
+    for (const agent of agents) this.agents.set(agent.id, agent);
+  }
 
   registerAgent(input: RegisterAgentInput): Agent {
     const now = new Date().toISOString();
@@ -39,6 +51,8 @@ export class AgentRegistry extends EventEmitter {
       updatedAt: now,
     };
     this.agents.set(agent.id, agent);
+    this.store?.upsertAgent(agent, input.sessionId);
+    this.store?.recordEvent({ agentId: agent.id, eventType: "registered" });
     this.emit("agent_updated", agent);
     return agent;
   }
@@ -51,12 +65,19 @@ export class AgentRegistry extends EventEmitter {
     return [...this.agents.values()];
   }
 
-  updateStatus(id: string, status: AgentStatus, currentTask?: string): Agent | undefined {
+  updateStatus(
+    id: string,
+    status: AgentStatus,
+    currentTask?: string,
+    filePath?: string,
+  ): Agent | undefined {
     const agent = this.agents.get(id);
     if (!agent) return undefined;
     agent.status = status;
     if (currentTask !== undefined) agent.currentTask = currentTask;
     agent.updatedAt = new Date().toISOString();
+    this.store?.upsertAgent(agent);
+    this.store?.recordEvent({ agentId: id, eventType: "status", description: currentTask, filePath });
     this.emit("agent_updated", agent);
     return agent;
   }
@@ -84,6 +105,13 @@ export class AgentRegistry extends EventEmitter {
     agent.pendingApproval = approval;
     agent.status = input.kind === "text_input" ? "needs_input" : "needs_approval";
     agent.updatedAt = new Date().toISOString();
+
+    this.store?.upsertAgent(agent);
+    this.store?.recordEvent({
+      agentId: agent.id,
+      eventType: "approval_requested",
+      description: approval.prompt,
+    });
 
     this.emit("agent_updated", agent);
     this.emit("approval_requested", approval);
@@ -118,8 +146,15 @@ export class AgentRegistry extends EventEmitter {
       agent.pendingApproval = undefined;
       agent.status = "working";
       agent.updatedAt = new Date().toISOString();
+      this.store?.upsertAgent(agent);
       this.emit("agent_updated", agent);
     }
+
+    this.store?.recordEvent({
+      agentId: approval.agentId,
+      eventType: "approval_resolved",
+      description: `${response.approved ? "approved" : "denied"}: ${approval.prompt}`,
+    });
 
     this.approvals.delete(id);
     this.emit("approval_resolved", id);
