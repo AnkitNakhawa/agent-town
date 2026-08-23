@@ -1,0 +1,28 @@
+{
+  "name": "agent-town",
+  "private": true,
+  "version": "0.0.1",
+  "workspaces": [
+    "shared",
+    "server",
+    "client",
+    "examples/sdk-agent"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "dev:server": "npm run dev --workspace server",
+    "dev:client": "npm run dev --workspace client",
+    "fake-agent": "npm run fake-agent --workspace server",
+    "example:sdk-agent": "npm run start --workspace examples/sdk-agent"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "eslint": "^9.9.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.0.0"
+  }
+}
