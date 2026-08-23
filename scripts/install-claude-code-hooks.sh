@@ -21,8 +21,7 @@ cat > "$HOOK_JSON_FILE" <<JSON
   "hooks": {
     "SessionStart": [{"matcher": "*", "hooks": [{"type": "http", "url": "${SERVER_URL}/api/hooks/claude-code", "timeout": 5}]}],
     "UserPromptSubmit": [{"matcher": "*", "hooks": [{"type": "http", "url": "${SERVER_URL}/api/hooks/claude-code", "timeout": 5}]}],
-    "PreToolUse": [{"matcher": "*", "hooks": [{"type": "http", "url": "${SERVER_URL}/api/hooks/claude-code", "timeout": 5}]}],
-    "PermissionRequest": [{"matcher": "*", "hooks": [{"type": "http", "url": "${SERVER_URL}/api/hooks/claude-code", "timeout": 60}]}],
+    "PreToolUse": [{"matcher": "*", "hooks": [{"type": "http", "url": "${SERVER_URL}/api/hooks/claude-code", "timeout": 60}]}],
     "Stop": [{"matcher": "*", "hooks": [{"type": "http", "url": "${SERVER_URL}/api/hooks/claude-code", "timeout": 5}]}]
   }
 }
@@ -33,8 +32,12 @@ if [ "$APPLY" = false ]; then
 Agent Town — Claude Code hooks (opt-in)
 
 This script does NOT modify any files unless you pass --apply.
-It reports your agent's status and requests approval decisions
-through the running Agent Town server at ${SERVER_URL}.
+It reports your agent's status through the running Agent Town
+server at ${SERVER_URL}, and GATES every Bash, Write, Edit, and
+MultiEdit tool call behind an approval in the game — including
+calls that would otherwise be silently auto-allowed by your
+existing permission settings. It falls back to Claude Code's own
+prompt after ~55s if nothing responds (e.g. the server is down).
 
 Copy the JSON below into your project's .claude/settings.json
 (or .claude/settings.local.json to keep it out of git), merging
@@ -84,10 +87,21 @@ const incoming = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const existing = JSON.parse(readFileSync(targetPath, 'utf8'));
 
 existing.hooks = existing.hooks ?? {};
+
+// Drop any previously-installed agent-town entries (by URL) from every
+// event, including events no longer in the incoming config, so re-running
+// this script after an upgrade replaces stale hooks instead of leaving
+// them stranded alongside the new ones.
+for (const event of Object.keys(existing.hooks)) {
+  existing.hooks[event] = existing.hooks[event].filter(
+    (m) => !JSON.stringify(m).includes('/api/hooks/claude-code'),
+  );
+  if (existing.hooks[event].length === 0) delete existing.hooks[event];
+}
+
 for (const [event, matchers] of Object.entries(incoming.hooks)) {
   const current = existing.hooks[event] ?? [];
-  const alreadyInstalled = JSON.stringify(current).includes('/api/hooks/claude-code');
-  existing.hooks[event] = alreadyInstalled ? current : current.concat(matchers);
+  existing.hooks[event] = current.concat(matchers);
 }
 
 writeFileSync(targetPath, JSON.stringify(existing, null, 2) + '\n');

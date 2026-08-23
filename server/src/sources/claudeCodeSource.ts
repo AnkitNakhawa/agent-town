@@ -1,6 +1,7 @@
 import type { AgentRegistry } from "../registry.js";
 
 const PERMISSION_TIMEOUT_MS = 55_000;
+const GATED_TOOLS = new Set(["Bash", "Write", "Edit", "MultiEdit"]);
 
 const sessionAgents = new Map<string, string>();
 
@@ -79,15 +80,12 @@ export async function handleClaudeCodeHookEvent(
       registry.updateStatus(agentId, "working", payload.user_message?.slice(0, 80));
       return {};
 
-    case "PreToolUse":
-      registry.updateStatus(agentId, "working", describeTool(payload));
-      return {};
+    case "PreToolUse": {
+      if (!GATED_TOOLS.has(payload.tool_name ?? "")) {
+        registry.updateStatus(agentId, "working", describeTool(payload));
+        return {};
+      }
 
-    case "Stop":
-      registry.updateStatus(agentId, "idle", payload.last_assistant_message?.slice(0, 80));
-      return {};
-
-    case "PermissionRequest": {
       const approval = registry.createApproval({
         agentId,
         kind: "permission",
@@ -101,11 +99,15 @@ export async function handleClaudeCodeHookEvent(
 
       return {
         hookSpecificOutput: {
-          hookEventName: "PermissionRequest",
+          hookEventName: "PreToolUse",
           permissionDecision: decision,
         },
       };
     }
+
+    case "Stop":
+      registry.updateStatus(agentId, "idle", payload.last_assistant_message?.slice(0, 80));
+      return {};
 
     default:
       return {};

@@ -53,7 +53,19 @@ already have configured):
 ./scripts/install-claude-code-hooks.sh --apply
 ```
 
-Permission requests in that Claude Code session will then walk over to your
-desk in the game and wait for you to click Approve/Deny, falling back to
-Claude Code's normal prompt after ~55s if nothing responds (e.g. the server
-isn't running).
+Every `Bash`, `Write`, `Edit`, and `MultiEdit` tool call in that Claude Code
+session will then walk over to your desk in the game and wait for you to
+click Approve/Deny — **including calls your existing permission settings
+would otherwise auto-allow**, since the gate runs before Claude Code's own
+allowlist check. It falls back to Claude Code's normal prompt after ~55s if
+nothing responds (e.g. the server isn't running).
+
+Note: Claude Code's `PermissionRequest` hook event looks like the more
+surgical fit (it only fires when a decision is actually needed), but in
+testing (Claude Code 2.1.241) its `permissionDecision` response was
+silently ignored — the session stayed blocked waiting on its own prompt
+even after the game resolved it. `PreToolUse` is the one hook event the
+[docs](https://code.claude.com/docs/en/hooks) explicitly confirm honors a
+`permissionDecision` response, hence the broader (allowlist-overriding)
+scope here. Worth re-testing `PermissionRequest` on future Claude Code
+versions.
