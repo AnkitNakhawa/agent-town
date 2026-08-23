@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import websocketPlugin from "@fastify/websocket";
 import { AgentRegistry } from "./registry.js";
 import { registerAgentRoutes } from "./routes/agents.js";
+import { registerHookRoutes } from "./routes/hooks.js";
 import { registerWebSocket } from "./ws.js";
 
 const PORT = Number(process.env.PORT ?? 4317);
@@ -17,6 +18,7 @@ await app.register(websocketPlugin);
 app.get("/health", async () => ({ ok: true }));
 
 registerAgentRoutes(app, registry);
+registerHookRoutes(app, registry);
 registerWebSocket(app, registry);
 
 app.listen({ port: PORT }, (err, address) => {
