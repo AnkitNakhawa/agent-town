@@ -13,12 +13,16 @@ const STATUS_COLOR: Record<AgentStatus, number> = {
 export class AgentSprite {
   readonly id: string;
   readonly container: Phaser.GameObjects.Container;
+  lastKnownAgent: Agent;
+  private scene: Phaser.Scene;
   private body: Phaser.GameObjects.Arc;
   private nameLabel: Phaser.GameObjects.Text;
   private taskLabel: Phaser.GameObjects.Text;
 
   constructor(scene: Phaser.Scene, agent: Agent, x: number, y: number) {
     this.id = agent.id;
+    this.scene = scene;
+    this.lastKnownAgent = agent;
 
     this.body = scene.add.circle(0, 0, 18, STATUS_COLOR[agent.status]);
     this.nameLabel = scene.add
@@ -42,12 +46,24 @@ export class AgentSprite {
   }
 
   update(agent: Agent): void {
+    this.lastKnownAgent = agent;
     this.body.setFillStyle(STATUS_COLOR[agent.status]);
     this.taskLabel.setText(agent.currentTask ?? "");
   }
 
   setPosition(x: number, y: number): void {
     this.container.setPosition(x, y);
+  }
+
+  walkTo(x: number, y: number, onArrive?: () => void): void {
+    this.scene.tweens.add({
+      targets: this.container,
+      x,
+      y,
+      duration: 500,
+      ease: "Sine.easeInOut",
+      onComplete: onArrive,
+    });
   }
 
   destroy(): void {

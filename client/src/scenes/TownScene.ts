@@ -1,17 +1,31 @@
 import Phaser from "phaser";
 import type { Agent } from "@agent-town/shared";
 import { WsClient } from "../net/wsClient.js";
+import { respondToApproval } from "../net/api.js";
 import { AgentSprite } from "../entities/AgentSprite.js";
+import { DialogueBox } from "../ui/DialogueBox.js";
 
 const WS_URL = "ws://localhost:4317/ws";
 const GRID_COLS = 4;
 const GRID_ORIGIN = { x: 140, y: 140 };
 const GRID_SPACING = { x: 180, y: 140 };
 
+const NEEDS_HUMAN: Agent["status"][] = ["needs_approval", "needs_input"];
+
+function isApproveLabel(label: string): boolean {
+  return ["allow", "approve", "yes"].includes(label.toLowerCase());
+}
+
 export class TownScene extends Phaser.Scene {
   private sprites = new Map<string, AgentSprite>();
+  private homePositions = new Map<string, { x: number; y: number }>();
   private order: string[] = [];
   private statusText!: Phaser.GameObjects.Text;
+  private dialogueBox!: DialogueBox;
+  private deskPosition!: { x: number; y: number };
+
+  private approvalQueue: string[] = [];
+  private activeApprovalAgentId: string | null = null;
 
   constructor() {
     super("Town");
@@ -19,12 +33,26 @@ export class TownScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor("#1e1e2e");
+    this.deskPosition = { x: this.scale.width / 2, y: this.scale.height - 220 };
+
+    this.add
+      .rectangle(this.deskPosition.x, this.deskPosition.y, 100, 60, 0x313244)
+      .setStrokeStyle(2, 0xcdd6f4);
+    this.add
+      .text(this.deskPosition.x, this.deskPosition.y - 44, "YOUR DESK", {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#a6adc8",
+      })
+      .setOrigin(0.5);
 
     this.statusText = this.add.text(16, 16, "connecting...", {
       fontFamily: "monospace",
       fontSize: "12px",
       color: "#a6adc8",
     });
+
+    this.dialogueBox = new DialogueBox(this);
 
     const ws = new WsClient(WS_URL);
     ws.on((event) => {
@@ -60,14 +88,90 @@ export class TownScene extends Phaser.Scene {
   }
 
   private upsertAgent(agent: Agent): void {
-    const existing = this.sprites.get(agent.id);
-    if (existing) {
-      existing.update(agent);
+    let sprite = this.sprites.get(agent.id);
+    if (!sprite) {
+      const home = this.slotFor(agent.id);
+      this.homePositions.set(agent.id, home);
+      sprite = new AgentSprite(this, agent, home.x, home.y);
+      this.sprites.set(agent.id, sprite);
+    } else {
+      sprite.update(agent);
+    }
+
+    const needsHuman = NEEDS_HUMAN.includes(agent.status) && Boolean(agent.pendingApproval);
+
+    if (needsHuman) {
+      this.enqueueApproval(agent.id);
+    } else if (agent.id === this.activeApprovalAgentId) {
+      this.resolveActiveApproval(agent.id);
+    } else {
+      this.approvalQueue = this.approvalQueue.filter((id) => id !== agent.id);
+    }
+  }
+
+  private enqueueApproval(agentId: string): void {
+    const alreadyQueued = this.approvalQueue.includes(agentId);
+    const alreadyActive = this.activeApprovalAgentId === agentId;
+    if (!alreadyQueued && !alreadyActive) {
+      this.approvalQueue.push(agentId);
+    }
+    if (!this.activeApprovalAgentId) {
+      this.processNextApproval();
+    }
+  }
+
+  private processNextApproval(): void {
+    const nextId = this.approvalQueue.shift();
+    if (!nextId) return;
+
+    const sprite = this.sprites.get(nextId);
+    if (!sprite) {
+      this.processNextApproval();
       return;
     }
-    const { x, y } = this.slotFor(agent.id);
-    const sprite = new AgentSprite(this, agent, x, y);
-    this.sprites.set(agent.id, sprite);
+
+    this.activeApprovalAgentId = nextId;
+    sprite.walkTo(this.deskPosition.x, this.deskPosition.y - 40, () => {
+      this.showDialogueFor(nextId);
+    });
+  }
+
+  private showDialogueFor(agentId: string): void {
+    const agent = this.latestAgentSnapshot(agentId);
+    if (!agent || !agent.pendingApproval) {
+      this.finishActiveApproval();
+      return;
+    }
+
+    this.dialogueBox.show(agent.name, agent.pendingApproval, (_index, label) => {
+      const approved = isApproveLabel(label);
+      void respondToApproval(agent.pendingApproval!.id, { approved });
+    });
+  }
+
+  private latestAgentSnapshot(agentId: string): Agent | undefined {
+    const sprite = this.sprites.get(agentId);
+    if (!sprite) return undefined;
+    return sprite.lastKnownAgent;
+  }
+
+  private resolveActiveApproval(agentId: string): void {
+    if (this.activeApprovalAgentId !== agentId) return;
+    this.finishActiveApproval();
+  }
+
+  private finishActiveApproval(): void {
+    const agentId = this.activeApprovalAgentId;
+    this.activeApprovalAgentId = null;
+    this.dialogueBox.hide();
+
+    if (agentId) {
+      const sprite = this.sprites.get(agentId);
+      const home = this.homePositions.get(agentId);
+      if (sprite && home) sprite.walkTo(home.x, home.y);
+    }
+
+    this.processNextApproval();
   }
 
   private removeAgent(agentId: string): void {
@@ -75,6 +179,9 @@ export class TownScene extends Phaser.Scene {
     if (!sprite) return;
     sprite.destroy();
     this.sprites.delete(agentId);
+    this.homePositions.delete(agentId);
     this.order = this.order.filter((id) => id !== agentId);
+    this.approvalQueue = this.approvalQueue.filter((id) => id !== agentId);
+    if (this.activeApprovalAgentId === agentId) this.finishActiveApproval();
   }
 }
