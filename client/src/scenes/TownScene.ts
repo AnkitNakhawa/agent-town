@@ -15,7 +15,10 @@ const MAX_WORKSTATION_SLOTS = 8;
 const GRASS_FRAME = 0;
 const DIRT_FRAME = 13;
 const TREE_FRAMES = [4, 5, 16, 17];
+const MUSHROOM_FRAME = 30;
 const FENCE_FRAME = 81;
+const PLATFORM_FLOOR_FRAME = 109;
+const SIGN_POST_FRAME = 82;
 const GROUND_SCALE = 3;
 
 const NEEDS_HUMAN: Agent["status"][] = ["needs_approval", "needs_input"];
@@ -47,17 +50,7 @@ export class TownScene extends Phaser.Scene {
     this.paintWorkstationTiles();
     this.paintPath();
     this.paintDecor();
-
-    this.add
-      .rectangle(this.deskPosition.x, this.deskPosition.y, 100, 60, 0x313244)
-      .setStrokeStyle(2, 0xcdd6f4);
-    this.add
-      .text(this.deskPosition.x, this.deskPosition.y - 44, "YOUR DESK", {
-        fontFamily: "monospace",
-        fontSize: "11px",
-        color: "#a6adc8",
-      })
-      .setOrigin(0.5);
+    this.paintDesk();
 
     this.statusText = this.add.text(16, 16, "connecting...", {
       fontFamily: "monospace",
@@ -110,6 +103,28 @@ export class TownScene extends Phaser.Scene {
     }
   }
 
+  private paintDesk(): void {
+    const tileSize = TILE_SIZE * GROUND_SCALE;
+    const { x, y } = this.deskPosition;
+
+    for (let row = -1; row <= 0; row++) {
+      for (let col = -1; col <= 1; col++) {
+        this.add
+          .sprite(x + col * tileSize, y + row * tileSize, "tiny-town", PLATFORM_FLOOR_FRAME)
+          .setScale(GROUND_SCALE);
+      }
+    }
+
+    this.add.sprite(x, y - 20, "tiny-town", SIGN_POST_FRAME).setScale(GROUND_SCALE);
+    this.add
+      .text(x, y - 60, "YOUR DESK", {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#a6adc8",
+      })
+      .setOrigin(0.5);
+  }
+
   private paintPath(): void {
     const tileSize = TILE_SIZE * GROUND_SCALE;
     const lastRow = Math.floor((MAX_WORKSTATION_SLOTS - 1) / GRID_COLS);
@@ -143,6 +158,24 @@ export class TownScene extends Phaser.Scene {
         .sprite(col * fenceTileSize + fenceTileSize / 2, fenceTileSize / 2, "tiny-town", FENCE_FRAME)
         .setScale(GROUND_SCALE);
     }
+
+    const sideRows = 3;
+    for (let row = 1; row <= sideRows; row++) {
+      const y = (this.scale.height / (sideRows + 1)) * row;
+      this.add
+        .sprite(margin, y, "tiny-town", TREE_FRAMES[row % TREE_FRAMES.length])
+        .setScale(GROUND_SCALE);
+      this.add
+        .sprite(this.scale.width - margin, y, "tiny-town", TREE_FRAMES[(row + 1) % TREE_FRAMES.length])
+        .setScale(GROUND_SCALE);
+    }
+
+    this.add
+      .sprite(this.scale.width / 2 - 320, this.scale.height - 60, "tiny-town", MUSHROOM_FRAME)
+      .setScale(GROUND_SCALE);
+    this.add
+      .sprite(this.scale.width / 2 + 320, this.scale.height - 60, "tiny-town", MUSHROOM_FRAME)
+      .setScale(GROUND_SCALE);
   }
 
   private slotFor(id: string): { x: number; y: number } {
