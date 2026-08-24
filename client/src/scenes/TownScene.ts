@@ -55,7 +55,9 @@ export class TownScene extends Phaser.Scene {
     this.statusText = this.add.text(16, 16, "connecting...", {
       fontFamily: "monospace",
       fontSize: "12px",
-      color: "#a6adc8",
+      color: "#f2f2f7",
+      stroke: "#11111b",
+      strokeThickness: 3,
     });
 
     this.dialogueBox = new DialogueBox(this);
@@ -120,7 +122,9 @@ export class TownScene extends Phaser.Scene {
       .text(x, y - 60, "YOUR DESK", {
         fontFamily: "monospace",
         fontSize: "11px",
-        color: "#a6adc8",
+        color: "#f2f2f7",
+        stroke: "#11111b",
+        strokeThickness: 3,
       })
       .setOrigin(0.5);
   }
@@ -209,25 +213,47 @@ export class TownScene extends Phaser.Scene {
       this.enqueueApproval(agent.id);
     } else if (agent.id === this.activeApprovalAgentId) {
       this.resolveActiveApproval(agent.id);
-    } else {
+    } else if (this.approvalQueue.includes(agent.id)) {
       this.approvalQueue = this.approvalQueue.filter((id) => id !== agent.id);
+      this.refreshQueuePositions();
     }
+  }
+
+  private queueSlotPosition(index: number): { x: number; y: number } {
+    const spacing = TILE_SIZE * GROUND_SCALE * 1.9;
+    return {
+      x: this.deskPosition.x,
+      y: this.deskPosition.y - 40 - spacing * (index + 1),
+    };
+  }
+
+  private refreshQueuePositions(): void {
+    this.approvalQueue.forEach((id, index) => {
+      const sprite = this.sprites.get(id);
+      if (!sprite) return;
+      const pos = this.queueSlotPosition(index);
+      sprite.walkTo(pos.x, pos.y);
+    });
   }
 
   private enqueueApproval(agentId: string): void {
     const alreadyQueued = this.approvalQueue.includes(agentId);
     const alreadyActive = this.activeApprovalAgentId === agentId;
-    if (!alreadyQueued && !alreadyActive) {
+    if (alreadyActive) return;
+    if (!alreadyQueued) {
       this.approvalQueue.push(agentId);
     }
     if (!this.activeApprovalAgentId) {
       this.processNextApproval();
+    } else {
+      this.refreshQueuePositions();
     }
   }
 
   private processNextApproval(): void {
     const nextId = this.approvalQueue.shift();
     if (!nextId) return;
+    this.refreshQueuePositions();
 
     const sprite = this.sprites.get(nextId);
     if (!sprite) {
@@ -286,7 +312,9 @@ export class TownScene extends Phaser.Scene {
     this.sprites.delete(agentId);
     this.homePositions.delete(agentId);
     this.order = this.order.filter((id) => id !== agentId);
+    const wasQueued = this.approvalQueue.includes(agentId);
     this.approvalQueue = this.approvalQueue.filter((id) => id !== agentId);
+    if (wasQueued) this.refreshQueuePositions();
     if (this.activeApprovalAgentId === agentId) this.finishActiveApproval();
   }
 }

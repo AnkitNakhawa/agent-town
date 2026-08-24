@@ -83,13 +83,17 @@ export class AgentSprite {
         fontFamily: "monospace",
         fontSize: "12px",
         color: "#cdd6f4",
+        stroke: "#11111b",
+        strokeThickness: 3,
       })
       .setOrigin(0.5);
     this.taskLabel = scene.add
       .text(0, 30, agent.currentTask ?? "", {
         fontFamily: "monospace",
         fontSize: "10px",
-        color: "#a6adc8",
+        color: "#f2f2f7",
+        stroke: "#11111b",
+        strokeThickness: 3,
         wordWrap: { width: 110 },
         align: "center",
       })
