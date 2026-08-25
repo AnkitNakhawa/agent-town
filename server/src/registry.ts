@@ -92,6 +92,10 @@ export class AgentRegistry extends EventEmitter {
     const agent = this.agents.get(input.agentId);
     if (!agent) return undefined;
 
+    if (agent.pendingApproval) {
+      this.resolveApproval(agent.pendingApproval.id, { approved: false });
+    }
+
     const approval: ApprovalRequest = {
       id: randomUUID(),
       agentId: input.agentId,
